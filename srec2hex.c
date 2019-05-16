@@ -40,6 +40,8 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <stdint.h>
+
 
 enum
 {
