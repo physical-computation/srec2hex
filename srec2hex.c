@@ -46,7 +46,7 @@
 enum
 {
 	kMaxSrecordLineLength	=	1024,
-	kCodeAddress		=	0x400,
+	kCodeAddress		=	0x800,
 };
 
 int
