@@ -41,16 +41,132 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <getopt.h>
+#include <inttypes.h>
 
+static void	processFile(uint64_t codeAddress, char *  fileName);
+static void	usage(void);
+static void	version(void);
 
 enum
 {
 	kMaxSrecordLineLength	=	1024,
-	kCodeAddress		=	0x1000,
 };
+
+const char *	kSrec2hexVersion = "0.2";
+
+
 
 int
 main(int argc, char *  argv[])
+{
+	uint64_t	codeAddress;
+
+
+	while (1)
+	{
+		char			tmp;
+		char *			ep = &tmp;
+		int			optionIndex	= 0, c;
+		static struct option	options[]	=
+		{
+			{"help",		no_argument,		0,	'h'},
+			{"version",		no_argument,		0,	'V'},
+			{"base",		required_argument,	0,	'b'},
+			{0,			0,			0,	0}
+		};
+
+		c = getopt_long(argc, argv, "hVb:", options, &optionIndex);
+
+		if (c == -1)
+		{
+			break;
+		}
+
+		switch (c)
+		{
+			case 0:
+			{
+				/*
+				 *	Not sure what the expected behavior for getopt_long is here...
+				 */
+				break;
+			}
+
+			case 'h':
+			{
+				usage();
+				exit(EXIT_SUCCESS);
+
+				/*	Not reached 	*/
+				break;
+			}
+
+			case 'V':
+			{
+				version();
+				exit(EXIT_SUCCESS);
+
+				/*	Not reached 	*/
+				break;
+			}
+
+			case 'b':
+			{
+				/*
+				 *	TODO: Rather than accepting the raw enum value as integer,
+				 *	accept string and compare to table of options
+				 */
+				uint64_t tmpInt = strtoul(optarg, &ep, 0);
+				if (*ep == '\0')
+				{
+					codeAddress = tmpInt;
+				}
+				else
+				{
+					usage();
+					exit(EXIT_FAILURE);
+				}
+
+				break;
+			}
+
+			case '?':
+			{
+				/*
+				 *	getopt_long() should have already printed an error message.
+				 */
+				usage();
+				exit(EXIT_FAILURE);
+
+				break;
+			}
+
+			default:
+			{
+				usage();
+				exit(EXIT_FAILURE);
+			}
+		}
+	}
+
+	if (optind < argc)
+	{
+		while (optind < argc)
+		{
+			processFile(codeAddress, argv[optind++]);
+		}
+	}
+	else
+	{
+		fprintf(stderr, "\nError: No input.\n");
+		usage();
+		exit(EXIT_FAILURE);
+	}
+}
+
+void
+processFile(uint64_t codeAddress, char *  fileName)
 {
 	struct stat	sb;
 	char *		fileBuf;
@@ -64,9 +180,9 @@ main(int argc, char *  argv[])
 	bool		isData = false;
 
 
-	if ((inputFd = open(argv[1], O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP)) < 0)
+	if ((inputFd = open(fileName, O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP)) < 0)
 	{
-		fprintf(stderr, "Open of \"%s\" failed...\n", argv[1]);
+		fprintf(stderr, "Open of \"%s\" failed...\n", fileName);
 		exit(EXIT_FAILURE);
 	}
 
@@ -85,7 +201,7 @@ main(int argc, char *  argv[])
 
 	if (fstat(inputFd, &sb) < 0)
 	{
-		fprintf(stderr, "Determining size of \"%s\" failed...\n\n", argv[1]);
+		fprintf(stderr, "Determining size of \"%s\" failed...\n\n", fileName);
 		exit(EXIT_FAILURE);
 	}
 	fileSize = sb.st_size;
@@ -99,7 +215,7 @@ main(int argc, char *  argv[])
 	
 	if ((n = read(inputFd, fileBuf, fileSize)) != fileSize)
 	{
-		fprintf(stderr, "Expected [%d] bytes in [%s], read [%d]", fileSize, argv[1], n);
+		fprintf(stderr, "Expected [%d] bytes in [%s], read [%d]", fileSize, fileName, n);
 		exit(EXIT_FAILURE);
 	}
 
@@ -115,7 +231,7 @@ main(int argc, char *  argv[])
 
 		if (filePosition == fileSize)
 		{
-			return 0;
+			return;
 		}
 
 		while (i < kMaxSrecordLineLength && filePosition < fileSize && fileBuf[filePosition] != '\n')
@@ -146,7 +262,6 @@ main(int argc, char *  argv[])
 			case 1:
 			{
 				/*	Data record with 16bit address	*/
-				int	i;
 				char	*tptr, tmp[8+1];
 
 
@@ -161,10 +276,10 @@ main(int argc, char *  argv[])
 				if (!pcset)
 				{
 					fprintf(stderr,
-						"Splitting S-RECORD which was originally targeted at memory address 0x%x,\n"
-						"Assuming code ends at 0x%08x and data start is aligned on a 32-byte (S-record line) boundary...\n"
+						"Splitting S-RECORD which was originally targeted at memory address 0x%"PRIu32"x,\n"
+						"Assuming code ends at 0x%08"PRIu64"x and data start is aligned on a 32-byte (S-record line) boundary...\n"
 						"(Generated .hex files have no explicit addresses in them)\n\n",
-						recordAddress, kCodeAddress);
+						recordAddress, codeAddress);
 					pcset = 1;
 				}
 
@@ -177,7 +292,7 @@ main(int argc, char *  argv[])
 				 */
 				for (int bytesInRecordSeen = 0; bytesInRecordSeen < recordLength; bytesInRecordSeen += 4)
 				{
-					if (recordAddress+bytesInRecordSeen >= kCodeAddress)
+					if (recordAddress+bytesInRecordSeen >= codeAddress)
 					{
 						fprintf(stderr, "\ndata:\t");
 						isData = true;
@@ -266,7 +381,6 @@ main(int argc, char *  argv[])
 			case 3:
 			{
 				/*	Data record with 32bit addr	*/
-				int	i;
 				char	*tptr, tmp[8+1];
 				
 				memmove(&tmp[0], &line[2], 2);
@@ -280,23 +394,22 @@ main(int argc, char *  argv[])
 				if (!pcset)
 				{
 					fprintf(stderr,
-						"Splitting S-RECORD which was originally targeted at memory address 0x%x,\n"
-						"assuming code ends at 0x%08x and data start is aligned on a 32-byte (S-record line) boundary...\n"
+						"Splitting S-RECORD which was originally targeted at memory address 0x%"PRIu32"x,\n"
+						"assuming code ends at 0x%08"PRIu64"x and data start is aligned on a 32-byte (S-record line) boundary...\n"
 						"(generated .hex files have no explicit addresses in them)\n\n",
-						recordAddress, kCodeAddress);
+						recordAddress, codeAddress);
 					pcset = 1;
 				}
 
 				/*	recordLength includes length of addr and chksum	*/
 				recordLength -= 5;
-				//fprintf(stderr, "S3 record, recordLength = %d\n", recordLength);
 
 				/*
 				 *	Bug: This assumes the recordLength is a multiple of 4
 				 */
 				for (int bytesInRecordSeen = 0; bytesInRecordSeen < recordLength; bytesInRecordSeen += 4)
 				{
-					if (recordAddress+bytesInRecordSeen >= kCodeAddress)
+					if (recordAddress+bytesInRecordSeen >= codeAddress)
 					{
 						fprintf(stderr, "\ndata:\t");
 						isData = true;
@@ -388,7 +501,7 @@ main(int argc, char *  argv[])
 
 			case 6:
 			{
-				/*		Unused 			*/	
+				/*		Unused			*/
 				break;
 			}
 
@@ -423,5 +536,24 @@ main(int argc, char *  argv[])
 	close(inputFd);
 
 
-	return 0;
+	return;
+}
+
+void
+version(void)
+{
+	fprintf(stderr, "\nsrec2hex version %s.\n\n", kSrec2hexVersion);
+}
+
+
+void
+usage(void)
+{
+	version();
+	fprintf(stderr,	"Usage:    srec2hex\n"
+			"                [ (--help, -h)                                               \n"
+			"                | (--version, --V)                                           \n"
+			"                | (--base <hexadecimal base address>, -b <hexadecimal base address>)                           \n"
+			"                                                                             \n"
+			"              <filename>\n\n");
 }
