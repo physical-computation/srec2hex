@@ -285,7 +285,6 @@ processFile(uint64_t codeAddress, char *  fileName)
 
 				/*	recordLength includes length of addr and chksum	*/
 				recordLength -= 3;
-				//fprintf(stderr, "S1 record, recordLength = %d\n", recordLength);
 
 				/*
 				 *	Bug: This assumes the recordLength is a multiple of 4
