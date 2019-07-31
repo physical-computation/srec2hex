@@ -276,7 +276,7 @@ processFile(uint64_t codeAddress, char *  fileName)
 				if (!pcset)
 				{
 					fprintf(stderr,
-						"Splitting S-RECORD which was originally targeted at memory address 0x%"PRIu32"x,\n"
+						"Splitting S-RECORD which was originally targeted at memory address 0x%"PRIX32",\n"
 						"Assuming code ends at 0x%08"PRIu64"x and data start is aligned on a 32-byte (S-record line) boundary...\n"
 						"(Generated .hex files have no explicit addresses in them)\n\n",
 						recordAddress, codeAddress);
