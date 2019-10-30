@@ -60,7 +60,7 @@ const char *	kSrec2hexVersion = "0.2";
 int
 main(int argc, char *  argv[])
 {
-	uint64_t	codeAddress;
+	uint64_t	codeAddress = 0;
 
 
 	while (1)
